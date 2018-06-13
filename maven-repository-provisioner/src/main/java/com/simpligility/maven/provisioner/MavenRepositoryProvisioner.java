@@ -34,6 +34,7 @@ public class MavenRepositoryProvisioner
         Boolean validConfig = false;
         logger.info( DASH_LINE );
         logger.info( " Maven Repository Provisioner      " );
+        logger.info( " FOR TRANSFER BETWEEN PRIVATE REPOS" );
         logger.info( " simpligility technologies inc.    " );
         logger.info( " http://www.simpligility.com       " );
         logger.info( DASH_LINE );
@@ -78,22 +79,22 @@ public class MavenRepositoryProvisioner
     private static void prepareCacheDirectory()
     {
       cacheDirectory = new File( config.getCacheDirectory() );
-      logger.info( " Absolute path: " + cacheDirectory.getAbsolutePath() );
+      logger.trace( " Absolute path: " + cacheDirectory.getAbsolutePath() );
       if ( cacheDirectory.exists() && cacheDirectory.isDirectory() )
       {
-        logger.info( "Detected local cache directory '" + config.getCacheDirectory() + "'." );
+        logger.trace( "Detected local cache directory '" + config.getCacheDirectory() + "'." );
         if ( !config.hasArtifactsCoordinates() )
         {
           logger.info( "No artifact coordinates specified - using cache directory as source." );
         }
         else
         {
-          logger.info( "Artifact coordinates specified "
+          logger.trace( "Artifact coordinates specified "
               + "- removing stale cache directory from prior execution." );
           try
           {
               FileUtils.deleteDirectory( cacheDirectory );
-              logger.info( config.getCacheDirectory() + " deleted." );
+              logger.trace( config.getCacheDirectory() + " deleted." );
           }
           catch ( IOException e )
           {
@@ -152,10 +153,10 @@ public class MavenRepositoryProvisioner
       logger.info( "Processing Completed." );
       StringBuilder summary = new StringBuilder();
       summary.append( "\nProcessing Summary\n" ).append( DASH_LINE ).append( "\n" );
-      summary.append( "Configuration:\n" ).append( config.getConfigSummary() );
+
       if ( retriever != null )
       {
-        summary.append( retriever.listSucessfulRetrievals() ).append( "\n" )
+        summary/*.append( retriever.listSucessfulRetrievals() ).append( "\n" )*/
           .append( retriever.listFailedTransfers() ).append( "\n" );
 
         if ( retriever.hasFailures() )
@@ -170,10 +171,10 @@ public class MavenRepositoryProvisioner
         }
       }
 
-      summary.append( deployer.listSucessfulDeployments() ).append( "\n" );
+      //summary.append( deployer.listSucessfulDeployments() ).append( "\n" );
       summary.append( deployer.listFailedDeployments() ).append( "\n" );
-      summary.append( deployer.listSkippedDeployment() ).append( "\n" );
-      summary.append( deployer.listPotentialDeployment() ).append( "\n" );
+      //summary.append( deployer.listSkippedDeployment() ).append( "\n" );
+      //summary.append( deployer.listPotentialDeployment() ).append( "\n" );
 
       if ( deployer.hasFailure() )
       {

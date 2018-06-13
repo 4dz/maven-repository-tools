@@ -23,9 +23,13 @@ import org.apache.commons.io.filefilter.SuffixFileFilter;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpHead;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
@@ -47,7 +51,7 @@ import org.slf4j.Logger;
 
 public class MavenRepositoryDeployer
 {
-    private static Logger logger = LoggerFactory.getLogger( "MavenRepositoryHelper" );
+    private static Logger logger = LoggerFactory.getLogger( "MavenRepositoryDeployer" );
 
     private File repositoryPath;
 
@@ -142,12 +146,12 @@ public class MavenRepositoryDeployer
             boolean pomInTarget = false;
             if ( checkTarget ) 
             {
-                pomInTarget = checkIfPomInTarget( targetUrl, gav );
+                pomInTarget = checkIfPomInTarget( targetUrl, gav, username, password );
             }
             
             if ( pomInTarget ) 
             {
-                logger.info( "Found POM for " + gav + " already in target. Skipping deployment." );
+                logger.trace( "Found POM for " + gav + " already in target. Skipping deployment." );
                 skippedDeploys.add( gav.toString() );
             } 
             else
@@ -202,6 +206,10 @@ public class MavenRepositoryDeployer
                     {
                         artifact = new DefaultArtifact( g, a, MavenConstants.JAVADOC, MavenConstants.JAR, v );
                     }
+                    else if ( gav.getClassesFilename().equals( fileName ) )
+                    {
+                        artifact = new DefaultArtifact( g, a, MavenConstants.CLASSES, MavenConstants.JAR, v );
+                    }
                     else if ( baseFileName.equals( fileName ) )
                     {
                         artifact = new DefaultArtifact( g, a, extension, v );
@@ -241,10 +249,22 @@ public class MavenRepositoryDeployer
                 }
                 catch ( Exception e )
                 {
-                    logger.info( "Deployment failed with " + e.getMessage() + ", artifact might be deployed already." );
-                    for ( Artifact artifact : deployRequest.getArtifacts() ) 
+                    logger.trace( "Deployment failed with "
+                            + e.getMessage() + ", artifact might be deployed already." );
+
+                    if ( !e.getMessage().endsWith( "(400)" ) )
                     {
-                        failedDeploys.add( artifact.toString() );
+                        for ( Artifact artifact : deployRequest.getArtifacts() )
+                        {
+                            failedDeploys.add( artifact.toString() );
+                        }
+                    }
+                    else
+                    {
+                        for ( Artifact artifact : deployRequest.getArtifacts() )
+                        {
+                            skippedDeploys.add( artifact.toString() );
+                        }
                     }
                 }
             }
@@ -258,13 +278,20 @@ public class MavenRepositoryDeployer
      * @param gav
      * @return
      */
-    private boolean checkIfPomInTarget( String targetUrl, Gav gav )
+    private boolean checkIfPomInTarget( String targetUrl, Gav gav , String username, String password )
     {
         boolean alreadyInTarget = false;
         
         String artifactUrl = targetUrl + gav.getRepositoryURLPath() + gav.getPomFilename();
-        logger.debug( "Headers for " +  artifactUrl );
-        HttpClient httpclient = HttpClientBuilder.create().build();
+
+        CredentialsProvider provider = new BasicCredentialsProvider();
+        UsernamePasswordCredentials credentials
+                = new UsernamePasswordCredentials( username, password );
+        provider.setCredentials( AuthScope.ANY, credentials );
+
+        HttpClient httpclient = HttpClientBuilder.create().setDefaultCredentialsProvider( provider ).build();
+
+
         HttpHead httphead = new HttpHead( artifactUrl );
         try 
         {
@@ -292,6 +319,11 @@ public class MavenRepositoryDeployer
 
     public String listSucessfulDeployments()
     {
+        if ( successfulDeploys.isEmpty() )
+        {
+            return "";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append( "Sucessful Deployments:\n\n" );
         for ( String artifact : successfulDeploys )
@@ -303,6 +335,11 @@ public class MavenRepositoryDeployer
 
     public String listFailedDeployments()
     {
+        if ( failedDeploys.isEmpty() )
+        {
+            return "";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append( "Failed Deployments:\n\n" );
         for ( String artifact : failedDeploys )
@@ -315,6 +352,11 @@ public class MavenRepositoryDeployer
     
     public String listSkippedDeployment()
     {
+        if ( skippedDeploys.isEmpty() )
+        {
+            return "";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append( "Skipped Deployments (POM already in target):\n\n" );
         for ( String artifact : skippedDeploys )
@@ -327,6 +369,11 @@ public class MavenRepositoryDeployer
 
     public String listPotentialDeployment()
     {
+        if ( potentialDeploys.isEmpty() )
+        {
+            return "";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append( "Potential Deployments :\n\n" );
         for ( String artifact : potentialDeploys )

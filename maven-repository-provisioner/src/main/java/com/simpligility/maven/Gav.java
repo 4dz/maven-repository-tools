@@ -62,6 +62,11 @@ public final class Gav
         return getFilenameStart() + MavenConstants.SOURCES_JAR;
     }
 
+    public String getClassesFilename()
+    {
+        return getFilenameStart() + MavenConstants.CLASSES_JAR;
+    }
+
     public String getJavadocFilename()
     {
         return getFilenameStart() + MavenConstants.JAVADOC_JAR;

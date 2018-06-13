@@ -111,14 +111,15 @@ public class ArtifactRetriever
 
         List<ArtifactResult> artifactResults = new ArrayList<ArtifactResult>();
         DependencyFilter depFilter = 
-            DependencyFilterUtils.classpathFilter( JavaScopes.TEST );
+            DependencyFilterUtils.classpathFilter( /*JavaScopes.TEST*/ );
         
         Collection<String> includes = new ArrayList<String>();
         // we always include compile scope, not doing that makes no sense
-        includes.add( JavaScopes.COMPILE );
+        
         
         Collection<String> excludes = new ArrayList<String>();
         // always exclude system scope since it is machine specific and wont work in 99% of cases
+        excludes.add( JavaScopes.COMPILE );
         excludes.add( JavaScopes.SYSTEM );
 
         if ( includeProvidedScope )
@@ -155,7 +156,7 @@ public class ArtifactRetriever
         for ( Artifact artifact : artifacts )
         {
             CollectRequest collectRequest = new CollectRequest();
-            collectRequest.setRoot( new Dependency( artifact, JavaScopes.COMPILE ) );
+            collectRequest.setRoot( new Dependency( artifact, "" ) );
             collectRequest.addRepository( sourceRepository );
 
             DependencyRequest dependencyRequest = new DependencyRequest( collectRequest, depFilter );
@@ -172,9 +173,9 @@ public class ArtifactRetriever
             catch ( DependencyResolutionException e )
             {
                 String extension = artifact.getExtension();
-                if ( MavenConstants.packagingUsesJarOnly( extension ) )
+                if ( MavenConstants.packagingUsesJarOnly( extension ) || MavenConstants.WAR.equals( extension ) )
                 {
-                    logger.info( "Not reporting as failure due to " + artifact.getExtension() + " extension." );
+                    logger.trace( "Not reporting as failure due to " + artifact.getExtension() + " extension." );
                 }
                 else
                 {
@@ -209,7 +210,13 @@ public class ArtifactRetriever
       List<Artifact> artifacts = new ArrayList<Artifact>();
       for ( String artifactCoordinate : artifactCoordinates )
       {
-          artifacts.add( new DefaultArtifact( artifactCoordinate ) );
+          DefaultArtifact jar = new DefaultArtifact( artifactCoordinate );
+          artifacts.add( jar );
+
+          DefaultArtifact war = new DefaultArtifact( jar.getGroupId(),
+                  jar.getArtifactId(), "war", jar.getVersion() );
+
+          artifacts.add( war );
       }
       for ( Artifact artifact : artifacts )
       {
@@ -220,6 +227,12 @@ public class ArtifactRetriever
               artifact.getExtension() );
           getJar( gav );
         }
+        else if ( "war".equalsIgnoreCase( extension ) )
+        {
+            Gav gav = new Gav( artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(),
+                    artifact.getExtension() );
+            getWar( gav );
+        }
       }
     }
 
@@ -228,7 +241,7 @@ public class ArtifactRetriever
         Collection<File> pomFiles = MavenRepositoryDeployer.getPomFiles( repositoryPath );
         for ( File pomFile : pomFiles )
         {
-            logger.info( "Processing POM file " + pomFile.getAbsolutePath() );
+            logger.trace( "Processing POM file " + pomFile.getAbsolutePath() );
             Gav gav = null;
             try
             {
@@ -261,6 +274,8 @@ public class ArtifactRetriever
                 {
                     getJavadocJar( gav );
                 }
+
+                getClassesJar( gav );
             }
         }
     }
@@ -274,10 +289,20 @@ public class ArtifactRetriever
     {
       getArtifact( gav, MavenConstants.JAR, null );
     }
+
+    private void getWar( Gav gav )
+    {
+        getArtifact( gav, MavenConstants.WAR, null );
+    }
     
     private void getSourcesJar( Gav gav )
     {
         getArtifact( gav, MavenConstants.JAR, MavenConstants.SOURCES );
+    }
+
+    private void getClassesJar( Gav gav )
+    {
+        getArtifact( gav, MavenConstants.JAR, MavenConstants.CLASSES );
     }
 
     private void getJavadocJar( Gav gav )
@@ -307,23 +332,38 @@ public class ArtifactRetriever
         try
         {
             ArtifactResult artifactResult = system.resolveArtifact( session, artifactRequest );
-            logger.info( "Retrieved " + artifactResult.getArtifact().getFile() );
+            File file = artifactResult.getArtifact().getFile();
+            if ( file != null )
+            {
+                logger.trace( "Retrieved " + file.getName() );
+            }
 
             successfulRetrievals.add( artifact.toString() );
         }
         catch ( ArtifactResolutionException e )
         {
-            if ( MavenConstants.BUNDLE.equals( packaging ) )
+            if ( MavenConstants.BUNDLE.equals( packaging ) || MavenConstants.JAVADOC.equals( classifier )
+                    || MavenConstants.CLASSES.equals( classifier )
+                    || MavenConstants.SOURCES.equals( classifier )
+                    || MavenConstants.WAR.equals( packaging ) )
             {
-              logger.info( "Ignoring failure to retrieve " + gav + " with " + packaging + " and " + classifier );
+              logger.trace( "Ignoring failure to retrieve " + gav + " with " + packaging + " and " + classifier );
             }
-            logger.info( "ArtifactResolutionException when retrieving " + gav + " with " + classifier );
-            failedRetrievals.add( e.getMessage() );
+            else
+            {
+                logger.info( "ArtifactResolutionException when retrieving " + gav + " with " + classifier );
+                failedRetrievals.add( e.getMessage() );
+            }
         }
     }
 
     public String listSucessfulRetrievals()
     {
+        if ( successfulRetrievals.isEmpty() )
+        {
+            return "";
+        }
+
         StringBuilder builder = new StringBuilder();
         builder.append( "Sucessful Retrievals:\n\n" );
         for ( String artifact : successfulRetrievals ) 
@@ -335,6 +375,10 @@ public class ArtifactRetriever
 
     public String listFailedTransfers()
     {
+        if ( failedRetrievals.isEmpty() )
+        {
+            return "";
+        }
         StringBuilder builder = new StringBuilder();
         builder.append( "Failed Retrievals:\n\n" );
         for ( String artifact : failedRetrievals ) 

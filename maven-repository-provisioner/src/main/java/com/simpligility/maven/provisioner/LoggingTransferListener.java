@@ -40,7 +40,7 @@ public class LoggingTransferListener
     {
         String message = event.getRequestType() == TransferEvent.RequestType.PUT ? "Uploading" : "Downloading";
 
-        logger.info( message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName() );
+        logger.trace( message + ": " + event.getResource().getRepositoryUrl() + event.getResource().getResourceName() );
     }
 
     @Override
@@ -65,7 +65,7 @@ public class LoggingTransferListener
                 throughput = " at " + format.format( kbPerSec ) + " KB/sec";
             }
 
-            logger.info( type + ": " + resource.getRepositoryUrl() + resource.getResourceName() + " (" + len
+            logger.trace( type + ": " + resource.getRepositoryUrl() + resource.getResourceName() + " (" + len
                 + throughput + ")" );
         }
     }
@@ -77,7 +77,7 @@ public class LoggingTransferListener
 
         if ( !( event.getException() instanceof MetadataNotFoundException ) )
         {
-            logger.info( event.getException().getMessage() );
+            logger.trace( event.getException().getMessage() );
         }
     }
 
